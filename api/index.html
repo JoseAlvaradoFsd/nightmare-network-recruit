@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nightmare Network Recruitment</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d0f14; --bg2: #151820; --bg3: #1c2030;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --text: #eef0f6; --muted: #7a7f96; --accent: #9b6dff; --accent2: #c084fc;
+    --green: #4ade80; --amber: #fbbf24; --red: #f87171; --teal: #2dd4bf;
+    --mono: 'Space Mono', monospace; --sans: 'DM Sans', sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+  .app { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  .header { display: flex; align-items: flex-end; gap: 1rem; margin-bottom: 2.5rem; border-bottom: 0.5px solid var(--border); padding-bottom: 1.5rem; }
+  .header-icon { width: 40px; height: 40px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .header-icon svg { width: 22px; height: 22px; fill: white; }
+  .header-text h1 { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+  .header-text p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .search-bar { display: flex; gap: 10px; margin-bottom: 2rem; }
+  .search-bar input { flex: 1; background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 10px; padding: 12px 16px; font-family: var(--mono); font-size: 14px; color: var(--text); outline: none; transition: border-color 0.2s; }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--muted); }
+  .search-bar button { background: var(--accent); color: white; border: none; border-radius: 10px; padding: 12px 22px; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s, transform 0.1s; white-space: nowrap; }
+  .search-bar button:hover { opacity: 0.88; }
+  .search-bar button:active { transform: scale(0.97); }
+  .search-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .status-bar { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; font-family: var(--mono); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .dot.loading { background: var(--amber); animation: pulse 1s infinite; }
+  .dot.ok { background: var(--green); }
+  .dot.err { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .section-label { font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; margin-top: 2rem; }
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .metric-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .metric-card .m-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); letter-spacing: 0.5px; }
+  .metric-card .m-value { font-size: 20px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .metric-card .m-value.accent { color: var(--accent2); }
+  .metric-card .m-value.green { color: var(--green); }
+  .metric-card .m-value.teal { color: var(--teal); }
+  .period-block { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 1.5rem; }
+  .pstat { text-align: center; padding: 10px; background: var(--bg3); border-radius: 8px; }
+  .pstat .ps-label { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-bottom: 4px; }
+  .pstat .ps-value { font-size: 16px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .horror-list { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
+  .horror-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 0.5px solid var(--border); transition: background 0.15s; }
+  .horror-item:last-child { border-bottom: none; }
+  .horror-item:hover { background: var(--bg3); }
+  .horror-num { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 20px; flex-shrink: 0; }
+  .horror-name { font-size: 14px; font-weight: 500; flex: 1; }
+  .horror-date { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .horror-badge { background: rgba(155,109,255,0.15); color: var(--accent2); font-size: 11px; font-family: var(--mono); padding: 3px 8px; border-radius: 5px; flex-shrink: 0; }
+  .export-bar { display: flex; gap: 10px; align-items: center; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-top: 2rem; }
+  .export-bar p { flex: 1; font-size: 13px; color: var(--muted); }
+  .export-bar strong { color: var(--text); }
+  .export-btn { background: #1e6b3f; color: #86efac; border: none; border-radius: 8px; padding: 10px 18px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .export-btn:hover { opacity: 0.85; }
+  .profile-row { display: flex; align-items: center; gap: 14px; background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 1.5rem; }
+  .profile-avatar { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), #ec4899); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-weight: 700; font-size: 18px; color: white; flex-shrink: 0; }
+  .profile-info h2 { font-family: var(--mono); font-size: 16px; font-weight: 700; }
+  .profile-info p { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .profile-link { margin-left: auto; font-size: 12px; color: var(--accent2); text-decoration: none; font-family: var(--mono); padding: 6px 12px; border: 0.5px solid rgba(155,109,255,0.3); border-radius: 7px; transition: background 0.15s; }
+  .profile-link:hover { background: rgba(155,109,255,0.1); }
+  .error-box { background: rgba(248,113,113,0.1); border: 0.5px solid rgba(248,113,113,0.3); border-radius: 10px; padding: 14px 16px; font-size: 13px; color: var(--red); margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-icon">
+      <svg viewBox="0 0 24 24"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/></svg>
+    </div>
+    <div class="header-text">
+      <h1>Nightmare Network Recruitment</h1>
+      <p>Enter a Twitch username to pull their metrics from TwitchTracker</p>
+    </div>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="usernameInput" placeholder="Enter Twitch username..." autocomplete="off" />
+    <button id="searchBtn" onclick="lookupStreamer()">Look Up</button>
+  </div>
+  <div class="status-bar">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">Ready — enter a username above</span>
+  </div>
+  <div id="mainContent"></div>
+</div>
+<script>
+let currentData = null;
+
+function setStatus(state, msg) {
+  document.getElementById('statusDot').className = 'dot ' + state;
+  document.getElementById('statusText').textContent = msg;
+}
+
+async function lookupStreamer() {
+  const input = document.getElementById('usernameInput');
+  const btn = document.getElementById('searchBtn');
+  const username = input.value.trim().toLowerCase();
+  if (!username) { setStatus('err', 'Please enter a Twitch username'); return; }
+  btn.disabled = true;
+  setStatus('loading', 'Fetching data from TwitchTracker...');
+  document.getElementById('mainContent').innerHTML = '';
+  try {
+    const res = await fetch(`/api/scrape?username=${encodeURIComponent(username)}`);
+    if (!res.ok) throw new Error((await res.json()).error || 'Request failed');
+    const data = await res.json();
+    currentData = { username, ...data };
+    renderDashboard(currentData);
+    setStatus('ok', `Data loaded for ${username} — powered by TwitchTracker`);
+  } catch (err) {
+    setStatus('err', 'Could not load data');
+    document.getElementById('mainContent').innerHTML = `<div class="error-box"><strong>Error:</strong> ${err.message}</div>`;
+  }
+  btn.disabled = false;
+}
+
+function renderDashboard(data) {
+  const initials = (data.displayName || data.username).slice(0,2).toUpperCase();
+  let html = `
+    <div class="profile-row">
+      <div class="profile-avatar">${initials}</div>
+      <div class="profile-info">
+        <h2>${data.displayName || data.username}</h2>
+        <p>Twitch: ${data.username} · Pulled ${new Date().toLocaleString()}</p>
+      </div>
+      <a class="profile-link" href="${data.url}" target="_blank">View on TwitchTracker ↗</a>
+    </div>
+    <div class="section-label">Overview</div>
+    <div class="metrics-grid">
+      ${metricCard('Avg Viewers', data.avgViewers || '—', 'accent')}
+      ${metricCard('Peak Viewers', data.peakViewers || '—', 'green')}
+      ${metricCard('Total Followers', data.followers || '—', 'teal')}
+    </div>
+    <div class="section-label">30 / 60 / 90 Day Breakdown</div>
+    <div class="period-block">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+        ${(data.periods || []).map(p => `
+          <div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:8px;letter-spacing:1px">${p.days}-DAY</div>
+            <div class="pstat"><div class="ps-label">Broadcast Time</div><div class="ps-value">${p.broadcastTime||'—'}</div></div>
+            <div class="pstat" style="margin-top:6px"><div class="ps-label">Hours Watched</div><div class="ps-value">${p.hoursWatched||'—'}</div></div>
+            <div class="pstat" style="margin-top:6px"><div class="ps-label">Active Days/Wk</div><div class="ps-value">${p.activeDays||'—'}</div></div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="section-label">Last 5 Horror Games Streamed</div>
+    <div class="horror-list">
+      ${data.horrorGames?.length ? data.horrorGames.map((g,i) => `
+        <div class="horror-item">
+          <div class="horror-num">#${i+1}</div>
+          <div class="horror-name">${g.name}</div>
+          ${g.date ? `<div class="horror-date">${g.date}</div>` : ''}
+          <div class="horror-badge">Horror</div>
+        </div>`).join('') : '<div class="horror-item"><div style="color:var(--muted);font-size:13px">No horror games found in recent streams.</div></div>'}
+    </div>
+    <div class="export-bar">
+      <p><strong>Export to Google Sheets</strong><br>Downloads a CSV for ${data.displayName || data.username} — drag it into Google Sheets to import.</p>
+      <button class="export-btn" onclick="exportToSheets()">Export to Sheets</button>
+    </div>`;
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function metricCard(label, value, cls) {
+  return `<div class="metric-card"><div class="m-label">${label}</div><div class="m-value ${cls}">${value}</div></div>`;
+}
+
+function exportToSheets() {
+  if (!currentData) return;
+  const d = currentData;
+  const p = days => (d.periods || []).find(p => p.days === days) || {};
+  const headers = ['Username','Display Name','Avg Viewers','Peak Viewers','Followers','30d Broadcast Time','30d Hours Watched','30d Active Days/Wk','60d Broadcast Time','60d Hours Watched','60d Active Days/Wk','90d Broadcast Time','90d Hours Watched','90d Active Days/Wk','Last 5 Horror Games','Pulled At','TwitchTracker URL'];
+  const values = [d.username,d.displayName||d.username,d.avgViewers||'',d.peakViewers||'',d.followers||'',p('30').broadcastTime||'',p('30').hoursWatched||'',p('30').activeDays||'',p('60').broadcastTime||'',p('60').hoursWatched||'',p('60').activeDays||'',p('90').broadcastTime||'',p('90').hoursWatched||'',p('90').activeDays||'',(d.horrorGames||[]).map(g=>g.name).join(', '),new Date().toLocaleString(),d.url||''];
+  const csv = [headers.join(','), values.map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',')].join('\n');
+  const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([csv],{type:'text/csv'})),download:`nightmare_network_${d.username}_${Date.now()}.csv`});
+  a.click();
+}
+
+document.getElementById('usernameInput').addEventListener('keydown', e => { if (e.key === 'Enter') lookupStreamer(); });
+</script>
+</body>
+</html>

@@ -52,17 +52,14 @@ export default async function handler(req, res) {
 
     function fmtHours(secs) {
       if (!secs) return '—';
-      const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
-      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+      const h = Math.floor(secs/3600), mn = Math.floor((secs%3600)/60);
+      return h > 0 ? `${h}h ${mn}m` : `${mn}m`;
     }
-
-    const cutoff30 = Date.now() - 30 * 864e5;
-    const cutoff90 = Date.now() - 90 * 864e5;
 
     function calcPeriod(days) {
       const cutoff = Date.now() - days * 864e5;
       const vids = allVideos.filter(v => new Date(v.created_at).getTime() >= cutoff);
-      if (!vids.length) return { broadcastTime: '0h 0m', activeDays: '0.0 / wk', hoursPerWeek: '0.0 / wk', hoursWatched: '—' };
+      if (!vids.length) return { broadcastTime: '0h 0m', activeDays: '0.0 / wk', hoursPerWeek: '0.0 / wk' };
       const secs = vids.reduce((a, v) => a + parseSecs(v.duration), 0);
       const daySet = new Set(vids.map(v => v.created_at.slice(0,10)));
       const weeks = days / 7;
@@ -70,7 +67,6 @@ export default async function handler(req, res) {
         broadcastTime: fmtHours(secs),
         activeDays: `${(daySet.size / weeks).toFixed(1)} / wk`,
         hoursPerWeek: `${(secs / 3600 / weeks).toFixed(1)} / wk`,
-        hoursWatched: '—'
       };
     }
 
@@ -80,7 +76,7 @@ export default async function handler(req, res) {
       { days: '180', label: '6-MONTH', ...calcPeriod(180) }
     ];
 
-    // Get games from clips to build a known games list
+    // Get games from clips
     let clips = [];
     let clipCursor = null;
     for (let i = 0; i < 3; i++) {
@@ -92,7 +88,6 @@ export default async function handler(req, res) {
       if (!clipCursor || clips.length >= 300) break;
     }
 
-    // Build known game names from clips
     const clipGameIds = [...new Set(clips.map(c => c.game_id).filter(Boolean))].slice(0, 100);
     let clipNameMap = {};
     if (clipGameIds.length) {
@@ -101,12 +96,11 @@ export default async function handler(req, res) {
       clipNameMap = Object.fromEntries((gData.data||[]).map(g => [g.id, g.name]));
     }
 
-    // Also get current channel game
     const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${user.id}`, { headers });
     const channelData = await channelRes.json();
     const currentGame = channelData.data?.[0];
 
-    // Build list of known game names sorted by most recent clip
+    // Build known games list with timestamps from clips
     const knownGames = {};
     if (currentGame?.game_name) {
       knownGames[currentGame.game_name] = { name: currentGame.game_name, lastPlayed: new Date().toISOString() };
@@ -120,29 +114,72 @@ export default async function handler(req, res) {
       }
     }
 
-    // For each known game, search video titles to estimate hours
-    const gameList = Object.values(knownGames)
-      .sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed))
-      .slice(0, 10);
+    // Build 6-month timeline — one entry per month for last 6 months
+    const now = new Date();
+    const monthTimeline = [];
 
-    const recentGames = gameList.map(g => {
-      const keyword = g.name.toLowerCase();
-      let secs30 = 0, secs90 = 0;
-      for (const v of allVideos) {
-        const title = (v.title || '').toLowerCase();
-        if (!title.includes(keyword)) continue;
-        const secs = parseSecs(v.duration);
-        const ts = new Date(v.created_at).getTime();
-        if (ts >= cutoff30) secs30 += secs;
-        if (ts >= cutoff90) secs90 += secs;
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const monthStart = new Date(year, month, 1).getTime();
+      const monthEnd = new Date(year, month + 1, 0, 23, 59, 59).getTime();
+      const monthLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      // Find games played this month from clips
+      const gamesThisMonth = {};
+      for (const c of clips) {
+        const ts = new Date(c.created_at).getTime();
+        if (ts < monthStart || ts > monthEnd) continue;
+        const name = clipNameMap[c.game_id];
+        if (!name) continue;
+        if (!gamesThisMonth[name]) gamesThisMonth[name] = { name, secs: 0 };
       }
-      return {
-        name: g.name,
-        date: new Date(g.lastPlayed).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        hours30: fmtHours(secs30),
-        hours90: fmtHours(secs90)
-      };
-    });
+
+      // Estimate hours per game this month by matching video titles
+      for (const gameName of Object.keys(gamesThisMonth)) {
+        const keyword = gameName.toLowerCase();
+        for (const v of allVideos) {
+          const ts = new Date(v.created_at).getTime();
+          if (ts < monthStart || ts > monthEnd) continue;
+          if ((v.title || '').toLowerCase().includes(keyword)) {
+            gamesThisMonth[gameName].secs += parseSecs(v.duration);
+          }
+        }
+      }
+
+      // Also catch any games from video titles that weren't in clips
+      for (const v of allVideos) {
+        const ts = new Date(v.created_at).getTime();
+        if (ts < monthStart || ts > monthEnd) continue;
+        const title = v.title || '';
+        // Check if any known game name appears in the title
+        for (const gameName of Object.keys(knownGames)) {
+          if (title.toLowerCase().includes(gameName.toLowerCase())) {
+            if (!gamesThisMonth[gameName]) gamesThisMonth[gameName] = { name: gameName, secs: 0 };
+            gamesThisMonth[gameName].secs += parseSecs(v.duration);
+          }
+        }
+      }
+
+      const gamesList = Object.values(gamesThisMonth)
+        .sort((a, b) => b.secs - a.secs)
+        .map(g => ({ name: g.name, hours: fmtHours(g.secs) }));
+
+      // Calculate total stream hours this month
+      const monthVideos = allVideos.filter(v => {
+        const ts = new Date(v.created_at).getTime();
+        return ts >= monthStart && ts <= monthEnd;
+      });
+      const totalSecs = monthVideos.reduce((a, v) => a + parseSecs(v.duration), 0);
+
+      monthTimeline.push({
+        label: monthLabel,
+        totalHours: fmtHours(totalSecs),
+        streamDays: new Set(monthVideos.map(v => v.created_at.slice(0,10))).size,
+        games: gamesList
+      });
+    }
 
     res.json({
       displayName: user.display_name,
@@ -150,7 +187,7 @@ export default async function handler(req, res) {
       avgViewers,
       peakViewers: '—',
       periods,
-      recentGames,
+      monthTimeline,
       url: `https://twitchtracker.com/${username}`
     });
 

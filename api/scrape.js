@@ -76,45 +76,79 @@ export default async function handler(req, res) {
       { days: '180', label: '6-MONTH', ...calcPeriod(180) }
     ];
 
-    // Get games from clips
-    let clips = [];
-    let clipCursor = null;
-    for (let i = 0; i < 3; i++) {
-      const clipUrl = `https://api.twitch.tv/helix/clips?broadcaster_id=${user.id}&first=100${clipCursor ? '&after=' + clipCursor : ''}`;
-      const cRes = await fetch(clipUrl, { headers });
-      const cData = await cRes.json();
-      clips = clips.concat(cData.data || []);
-      clipCursor = cData.pagination?.cursor;
-      if (!clipCursor || clips.length >= 300) break;
-    }
+    // Get all unique game_ids from videos
+    const rawGameIds = [...new Set(allVideos.map(v => v.game_id).filter(Boolean))];
 
-    const clipGameIds = [...new Set(clips.map(c => c.game_id).filter(Boolean))].slice(0, 100);
-    let clipNameMap = {};
-    if (clipGameIds.length) {
-      const gRes = await fetch(`https://api.twitch.tv/helix/games?${clipGameIds.map(id=>`id=${id}`).join('&')}`, { headers });
-      const gData = await gRes.json();
-      clipNameMap = Object.fromEntries((gData.data||[]).map(g => [g.id, g.name]));
-    }
-
-    const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${user.id}`, { headers });
-    const channelData = await channelRes.json();
-    const currentGame = channelData.data?.[0];
-
-    // Build known games list with timestamps from clips
-    const knownGames = {};
-    if (currentGame?.game_name) {
-      knownGames[currentGame.game_name] = { name: currentGame.game_name, lastPlayed: new Date().toISOString() };
-    }
-    for (const c of clips) {
-      const name = clipNameMap[c.game_id];
-      if (!name) continue;
-      if (!knownGames[name]) knownGames[name] = { name, lastPlayed: c.created_at };
-      if (new Date(c.created_at) > new Date(knownGames[name].lastPlayed)) {
-        knownGames[name].lastPlayed = c.created_at;
+    // Look up game names from Twitch for all game_ids found in VODs
+    let nameMap = {};
+    if (rawGameIds.length) {
+      // Fetch in batches of 100
+      for (let i = 0; i < rawGameIds.length; i += 100) {
+        const batch = rawGameIds.slice(i, i + 100);
+        const gRes = await fetch(`https://api.twitch.tv/helix/games?${batch.map(id => `id=${id}`).join('&')}`, { headers });
+        const gData = await gRes.json();
+        for (const g of gData.data || []) nameMap[g.id] = g.name;
       }
     }
 
-    // Build 6-month timeline — one entry per month for last 6 months
+    // If videos don't have game_id, fetch each video individually to get category
+    // Twitch's /videos endpoint sometimes omits game_id — use /channels instead
+    const videosWithoutGame = allVideos.filter(v => !v.game_id);
+    if (videosWithoutGame.length > 0 && rawGameIds.length === 0) {
+      // Fall back: get channel's game history via schedule or stream markers
+      // Use the channel endpoint to at least get current game
+      const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${user.id}`, { headers });
+      const channelData = await channelRes.json();
+      const ch = channelData.data?.[0];
+      if (ch?.game_id && ch?.game_name) {
+        nameMap[ch.game_id] = ch.game_name;
+        // Assign current game to most recent videos that lack game_id
+        for (const v of allVideos.slice(0, 5)) {
+          if (!v.game_id) v.game_id = ch.game_id;
+        }
+      }
+
+      // Also pull from clips which always have game_id
+      let clips = [];
+      let clipCursor = null;
+      for (let i = 0; i < 4; i++) {
+        const clipUrl = `https://api.twitch.tv/helix/clips?broadcaster_id=${user.id}&first=100${clipCursor ? '&after=' + clipCursor : ''}`;
+        const cRes = await fetch(clipUrl, { headers });
+        const cData = await cRes.json();
+        clips = clips.concat(cData.data || []);
+        clipCursor = cData.pagination?.cursor;
+        if (!clipCursor || clips.length >= 400) break;
+      }
+
+      const clipGameIds = [...new Set(clips.map(c => c.game_id).filter(Boolean))];
+      if (clipGameIds.length) {
+        const gRes = await fetch(`https://api.twitch.tv/helix/games?${clipGameIds.slice(0,100).map(id=>`id=${id}`).join('&')}`, { headers });
+        const gData = await gRes.json();
+        for (const g of gData.data || []) nameMap[g.id] = g.name;
+
+        // Match clips to videos by date to assign game_id to videos
+        for (const v of allVideos) {
+          if (v.game_id) continue;
+          const vDate = v.created_at.slice(0, 10);
+          const matchingClip = clips.find(c => c.created_at.slice(0, 10) === vDate && c.game_id);
+          if (matchingClip) v.game_id = matchingClip.game_id;
+        }
+
+        // Also try matching by week
+        for (const v of allVideos) {
+          if (v.game_id) continue;
+          const vTime = new Date(v.created_at).getTime();
+          const weekRange = 7 * 864e5;
+          const matchingClip = clips.find(c => {
+            const cTime = new Date(c.created_at).getTime();
+            return Math.abs(cTime - vTime) < weekRange && c.game_id;
+          });
+          if (matchingClip) v.game_id = matchingClip.game_id;
+        }
+      }
+    }
+
+    // Build 6-month timeline
     const now = new Date();
     const monthTimeline = [];
 
@@ -126,58 +160,32 @@ export default async function handler(req, res) {
       const monthEnd = new Date(year, month + 1, 0, 23, 59, 59).getTime();
       const monthLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-      // Find games played this month from clips
-      const gamesThisMonth = {};
-      for (const c of clips) {
-        const ts = new Date(c.created_at).getTime();
-        if (ts < monthStart || ts > monthEnd) continue;
-        const name = clipNameMap[c.game_id];
-        if (!name) continue;
-        if (!gamesThisMonth[name]) gamesThisMonth[name] = { name, secs: 0 };
-      }
-
-      // Estimate hours per game this month by matching video titles
-      for (const gameName of Object.keys(gamesThisMonth)) {
-        const keyword = gameName.toLowerCase();
-        for (const v of allVideos) {
-          const ts = new Date(v.created_at).getTime();
-          if (ts < monthStart || ts > monthEnd) continue;
-          if ((v.title || '').toLowerCase().includes(keyword)) {
-            gamesThisMonth[gameName].secs += parseSecs(v.duration);
-          }
-        }
-      }
-
-      // Also catch any games from video titles that weren't in clips
-      for (const v of allVideos) {
-        const ts = new Date(v.created_at).getTime();
-        if (ts < monthStart || ts > monthEnd) continue;
-        const title = v.title || '';
-        // Check if any known game name appears in the title
-        for (const gameName of Object.keys(knownGames)) {
-          if (title.toLowerCase().includes(gameName.toLowerCase())) {
-            if (!gamesThisMonth[gameName]) gamesThisMonth[gameName] = { name: gameName, secs: 0 };
-            gamesThisMonth[gameName].secs += parseSecs(v.duration);
-          }
-        }
-      }
-
-      const gamesList = Object.values(gamesThisMonth)
-        .sort((a, b) => b.secs - a.secs)
-        .map(g => ({ name: g.name, hours: fmtHours(g.secs) }));
-
-      // Calculate total stream hours this month
       const monthVideos = allVideos.filter(v => {
         const ts = new Date(v.created_at).getTime();
         return ts >= monthStart && ts <= monthEnd;
       });
+
       const totalSecs = monthVideos.reduce((a, v) => a + parseSecs(v.duration), 0);
+      const streamDays = new Set(monthVideos.map(v => v.created_at.slice(0,10))).size;
+
+      // Build game map for this month using game_id from videos
+      const gameMap = {};
+      for (const v of monthVideos) {
+        const name = nameMap[v.game_id] || null;
+        if (!name) continue;
+        if (!gameMap[name]) gameMap[name] = { name, secs: 0 };
+        gameMap[name].secs += parseSecs(v.duration);
+      }
+
+      const games = Object.values(gameMap)
+        .sort((a, b) => b.secs - a.secs)
+        .map(g => ({ name: g.name, hours: fmtHours(g.secs) }));
 
       monthTimeline.push({
         label: monthLabel,
         totalHours: fmtHours(totalSecs),
-        streamDays: new Set(monthVideos.map(v => v.created_at.slice(0,10))).size,
-        games: gamesList
+        streamDays,
+        games
       });
     }
 

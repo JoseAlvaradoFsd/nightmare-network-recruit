@@ -137,27 +137,36 @@ function renderDashboard(data) {
       ${metricCard('Peak Viewers', data.peakViewers || '—', 'green')}
       ${metricCard('Total Followers', data.followers || '—', 'teal')}
     </div>
-    <div class="section-label">30 / 60 / 90 Day Breakdown</div>
+    <div class="section-label">30 Day / 90 Day / 6 Month Breakdown</div>
     <div class="period-block">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
         ${(data.periods || []).map(p => `
           <div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:8px;letter-spacing:1px">${p.days}-DAY</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:8px;letter-spacing:1px">${p.label || p.days+'-DAY'}</div>
             <div class="pstat"><div class="ps-label">Broadcast Time</div><div class="ps-value">${p.broadcastTime||'—'}</div></div>
             <div class="pstat" style="margin-top:6px"><div class="ps-label">Hours Watched</div><div class="ps-value">${p.hoursWatched||'—'}</div></div>
             <div class="pstat" style="margin-top:6px"><div class="ps-label">Active Days/Wk</div><div class="ps-value">${p.activeDays||'—'}</div></div>
+            <div class="pstat" style="margin-top:6px"><div class="ps-label">Hours Streamed/Wk</div><div class="ps-value">${p.hoursPerWeek||'—'}</div></div>
           </div>`).join('')}
       </div>
     </div>
-    <div class="section-label">Last 5 Horror Games Streamed</div>
+    <div class="section-label">Last 10 Games Played</div>
     <div class="horror-list">
-      ${data.horrorGames?.length ? data.horrorGames.map((g,i) => `
+      ${data.recentGames?.length ? `
+        <div class="horror-item" style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:8px 16px;">
+          <div class="horror-num"></div>
+          <div class="horror-name">Game</div>
+          <div style="width:80px;text-align:right">30 Days</div>
+          <div style="width:80px;text-align:right;margin-right:8px">90 Days</div>
+        </div>
+        ${data.recentGames.map((g,i) => `
         <div class="horror-item">
           <div class="horror-num">#${i+1}</div>
-          <div class="horror-name">${g.name}</div>
-          ${g.date ? `<div class="horror-date">${g.date}</div>` : ''}
-          <div class="horror-badge">Horror</div>
-        </div>`).join('') : '<div class="horror-item"><div style="color:var(--muted);font-size:13px">No horror games found in recent streams.</div></div>'}
+          <div class="horror-name">${g.name}<span style="font-size:11px;color:var(--muted);margin-left:8px">${g.date}</span></div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--accent2);width:80px;text-align:right">${g.hours30}</div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--teal);width:80px;text-align:right;margin-right:8px">${g.hours90}</div>
+        </div>`).join('')}
+      ` : '<div class="horror-item"><div style="color:var(--muted);font-size:13px">No recent games found.</div></div>'}
     </div>
     <div class="export-bar">
       <p><strong>Export to Google Sheets</strong><br>Downloads a CSV for ${data.displayName || data.username} — drag it into Google Sheets to import.</p>

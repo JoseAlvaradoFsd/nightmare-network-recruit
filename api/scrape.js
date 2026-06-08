@@ -65,23 +65,14 @@ export default async function handler(req, res) {
       if (!vids.length) return { broadcastTime: '0h 0m', activeDays: '0.0 / wk', hoursPerWeek: '0.0 / wk', hoursWatched: '—' };
       const secs = vids.reduce((a, v) => a + parseSecs(v.duration), 0);
       const daySet = new Set(vids.map(v => v.created_at.slice(0,10)));
-      const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
       const weeks = days / 7;
       return {
-        broadcastTime: `${h}h ${m}m`,
+        broadcastTime: fmtHours(secs),
         activeDays: `${(daySet.size / weeks).toFixed(1)} / wk`,
         hoursPerWeek: `${(secs / 3600 / weeks).toFixed(1)} / wk`,
         hoursWatched: '—'
       };
     }
-
-    // Calculate total stream hours for 30 and 90 day periods
-    const totalSecs30 = allVideos
-      .filter(v => new Date(v.created_at).getTime() >= cutoff30)
-      .reduce((a, v) => a + parseSecs(v.duration), 0);
-    const totalSecs90 = allVideos
-      .filter(v => new Date(v.created_at).getTime() >= cutoff90)
-      .reduce((a, v) => a + parseSecs(v.duration), 0);
 
     const periods = [
       { days: '30', label: '30-DAY', ...calcPeriod(30) },
@@ -89,7 +80,7 @@ export default async function handler(req, res) {
       { days: '180', label: '6-MONTH', ...calcPeriod(180) }
     ];
 
-    // Get games from clips
+    // Get games from clips to build a known games list
     let clips = [];
     let clipCursor = null;
     for (let i = 0; i < 3; i++) {
@@ -101,19 +92,7 @@ export default async function handler(req, res) {
       if (!clipCursor || clips.length >= 300) break;
     }
 
-    const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${user.id}`, { headers });
-    const channelData = await channelRes.json();
-    const currentGame = channelData.data?.[0];
-
-    const gameMap = {};
-
-    if (currentGame?.game_id && currentGame?.game_name) {
-      gameMap[currentGame.game_name] = {
-        name: currentGame.game_name,
-        lastPlayed: new Date().toISOString()
-      };
-    }
-
+    // Build known game names from clips
     const clipGameIds = [...new Set(clips.map(c => c.game_id).filter(Boolean))].slice(0, 100);
     let clipNameMap = {};
     if (clipGameIds.length) {
@@ -122,32 +101,48 @@ export default async function handler(req, res) {
       clipNameMap = Object.fromEntries((gData.data||[]).map(g => [g.id, g.name]));
     }
 
+    // Also get current channel game
+    const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${user.id}`, { headers });
+    const channelData = await channelRes.json();
+    const currentGame = channelData.data?.[0];
+
+    // Build list of known game names sorted by most recent clip
+    const knownGames = {};
+    if (currentGame?.game_name) {
+      knownGames[currentGame.game_name] = { name: currentGame.game_name, lastPlayed: new Date().toISOString() };
+    }
     for (const c of clips) {
       const name = clipNameMap[c.game_id];
       if (!name) continue;
-      if (!gameMap[name]) gameMap[name] = { name, lastPlayed: c.created_at };
-      if (new Date(c.created_at) > new Date(gameMap[name].lastPlayed)) {
-        gameMap[name].lastPlayed = c.created_at;
+      if (!knownGames[name]) knownGames[name] = { name, lastPlayed: c.created_at };
+      if (new Date(c.created_at) > new Date(knownGames[name].lastPlayed)) {
+        knownGames[name].lastPlayed = c.created_at;
       }
     }
 
-    // Fallback to video titles if no clips
-    if (Object.keys(gameMap).length === 0) {
-      for (const v of allVideos.slice(0, 10)) {
-        const name = v.title || 'Unknown Stream';
-        if (!gameMap[name]) gameMap[name] = { name, lastPlayed: v.created_at };
-      }
-    }
-
-    const recentGames = Object.values(gameMap)
+    // For each known game, search video titles to estimate hours
+    const gameList = Object.values(knownGames)
       .sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed))
-      .slice(0, 10)
-      .map(g => ({
+      .slice(0, 10);
+
+    const recentGames = gameList.map(g => {
+      const keyword = g.name.toLowerCase();
+      let secs30 = 0, secs90 = 0;
+      for (const v of allVideos) {
+        const title = (v.title || '').toLowerCase();
+        if (!title.includes(keyword)) continue;
+        const secs = parseSecs(v.duration);
+        const ts = new Date(v.created_at).getTime();
+        if (ts >= cutoff30) secs30 += secs;
+        if (ts >= cutoff90) secs90 += secs;
+      }
+      return {
         name: g.name,
         date: new Date(g.lastPlayed).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        hours30: fmtHours(totalSecs30),
-        hours90: fmtHours(totalSecs90)
-      }));
+        hours30: fmtHours(secs30),
+        hours90: fmtHours(secs90)
+      };
+    });
 
     res.json({
       displayName: user.display_name,

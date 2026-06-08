@@ -152,7 +152,7 @@ export default async function handler(req, res) {
     const now = new Date();
     const monthTimeline = [];
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 3; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const year = d.getFullYear();
       const month = d.getMonth();

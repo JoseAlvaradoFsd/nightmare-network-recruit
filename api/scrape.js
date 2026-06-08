@@ -50,6 +50,15 @@ export default async function handler(req, res) {
       return (parseInt(m[1]||0)*3600)+(parseInt(m[2]||0)*60)+(parseInt(m[3]||0));
     }
 
+    function fmtHours(secs) {
+      if (!secs) return '—';
+      const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
+      return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    }
+
+    const cutoff30 = Date.now() - 30 * 864e5;
+    const cutoff90 = Date.now() - 90 * 864e5;
+
     function calcPeriod(days) {
       const cutoff = Date.now() - days * 864e5;
       const vids = allVideos.filter(v => new Date(v.created_at).getTime() >= cutoff);
@@ -66,18 +75,21 @@ export default async function handler(req, res) {
       };
     }
 
+    // Calculate total stream hours for 30 and 90 day periods
+    const totalSecs30 = allVideos
+      .filter(v => new Date(v.created_at).getTime() >= cutoff30)
+      .reduce((a, v) => a + parseSecs(v.duration), 0);
+    const totalSecs90 = allVideos
+      .filter(v => new Date(v.created_at).getTime() >= cutoff90)
+      .reduce((a, v) => a + parseSecs(v.duration), 0);
+
     const periods = [
       { days: '30', label: '30-DAY', ...calcPeriod(30) },
       { days: '90', label: '90-DAY', ...calcPeriod(90) },
       { days: '180', label: '6-MONTH', ...calcPeriod(180) }
     ];
 
-    // Fetch clip and schedule data to get game categories
-    // Use channel schedule/stream markers to find games played
-    // Fall back to fetching clips which DO include game_id
-    const cutoff90 = Date.now() - 90 * 864e5;
-    const cutoff30 = Date.now() - 30 * 864e5;
-
+    // Get games from clips
     let clips = [];
     let clipCursor = null;
     for (let i = 0; i < 3; i++) {
@@ -89,25 +101,19 @@ export default async function handler(req, res) {
       if (!clipCursor || clips.length >= 300) break;
     }
 
-    // Also try channel info for current game
     const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${user.id}`, { headers });
     const channelData = await channelRes.json();
     const currentGame = channelData.data?.[0];
 
-    // Build game map from clips (clips always have game_id)
     const gameMap = {};
 
-    // Add current game from channel info
     if (currentGame?.game_id && currentGame?.game_name) {
       gameMap[currentGame.game_name] = {
         name: currentGame.game_name,
-        secs30: 0,
-        secs90: 0,
         lastPlayed: new Date().toISOString()
       };
     }
 
-    // Process clips for game data
     const clipGameIds = [...new Set(clips.map(c => c.game_id).filter(Boolean))].slice(0, 100);
     let clipNameMap = {};
     if (clipGameIds.length) {
@@ -117,33 +123,20 @@ export default async function handler(req, res) {
     }
 
     for (const c of clips) {
-      const name = clipNameMap[c.game_id] || c.game_title;
+      const name = clipNameMap[c.game_id];
       if (!name) continue;
-      const ts = new Date(c.created_at).getTime();
-      if (!gameMap[name]) gameMap[name] = { name, secs30: 0, secs90: 0, lastPlayed: c.created_at };
-      if (ts >= cutoff30) gameMap[name].secs30 += c.duration || 0;
-      if (ts >= cutoff90) gameMap[name].secs90 += c.duration || 0;
+      if (!gameMap[name]) gameMap[name] = { name, lastPlayed: c.created_at };
       if (new Date(c.created_at) > new Date(gameMap[name].lastPlayed)) {
         gameMap[name].lastPlayed = c.created_at;
       }
     }
 
-    // If clips didn't give us games, use video titles to guess games
+    // Fallback to video titles if no clips
     if (Object.keys(gameMap).length === 0) {
-      for (const v of allVideos.slice(0, 20)) {
-        const name = v.title || 'Unknown';
-        if (!gameMap[name]) gameMap[name] = { name, secs30: 0, secs90: 0, lastPlayed: v.created_at };
-        const secs = parseSecs(v.duration);
-        const ts = new Date(v.created_at).getTime();
-        if (ts >= cutoff30) gameMap[name].secs30 += secs;
-        if (ts >= cutoff90) gameMap[name].secs90 += secs;
+      for (const v of allVideos.slice(0, 10)) {
+        const name = v.title || 'Unknown Stream';
+        if (!gameMap[name]) gameMap[name] = { name, lastPlayed: v.created_at };
       }
-    }
-
-    function fmtHours(secs) {
-      if (!secs) return '—';
-      const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
-      return h > 0 ? `${h}h ${m}m` : `${m}m`;
     }
 
     const recentGames = Object.values(gameMap)
@@ -152,8 +145,8 @@ export default async function handler(req, res) {
       .map(g => ({
         name: g.name,
         date: new Date(g.lastPlayed).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        hours30: fmtHours(g.secs30),
-        hours90: fmtHours(g.secs90)
+        hours30: fmtHours(totalSecs30),
+        hours90: fmtHours(totalSecs90)
       }));
 
     res.json({

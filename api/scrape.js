@@ -115,17 +115,22 @@ export default async function handler(req, res) {
         hours30: fmtHours(g.secs30),
         hours90: fmtHours(g.secs90)
       }));
-
-    res.json({
+res.json({
       displayName: user.display_name,
       followers,
       avgViewers,
       peakViewers: '—',
       periods,
       recentGames,
+      debug: {
+        totalVideos: allVideos.length,
+        sampleVideo: allVideos[0] || null,
+        gameIdsFound: gameIds.length,
+        nameMapSize: Object.keys(nameMap).length
+      },
       url: `https://twitchtracker.com/${username}`
     });
-
+  
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -33,7 +33,7 @@ export default async function handler(req, res) {
     const followers = followData.total?.toLocaleString() ?? '—';
     const avgViewers = streamData.data?.[0]?.viewer_count?.toLocaleString() ?? '—';
 
-    // Fetch up to 200 videos to cover 6 months
+    // Fetch up to 200 videos
     let allVideos = [];
     let cursor = null;
     for (let i = 0; i < 2; i++) {
@@ -58,12 +58,10 @@ export default async function handler(req, res) {
       const daySet = new Set(vids.map(v => v.created_at.slice(0,10)));
       const h = Math.floor(secs/3600), m = Math.floor((secs%3600)/60);
       const weeks = days / 7;
-      const hoursPerWeek = (secs / 3600 / weeks).toFixed(1);
-      const activeDaysPerWeek = (daySet.size / weeks).toFixed(1);
       return {
         broadcastTime: `${h}h ${m}m`,
-        activeDays: `${activeDaysPerWeek} / wk`,
-        hoursPerWeek: `${hoursPerWeek} / wk`,
+        activeDays: `${(daySet.size / weeks).toFixed(1)} / wk`,
+        hoursPerWeek: `${(secs / 3600 / weeks).toFixed(1)} / wk`,
         hoursWatched: '—'
       };
     }
@@ -74,29 +72,72 @@ export default async function handler(req, res) {
       { days: '180', label: '6-MONTH', ...calcPeriod(180) }
     ];
 
-    // Get game names for all videos
-    const gameIds = [...new Set(allVideos.map(v => v.game_id).filter(Boolean))].slice(0, 100);
-    let nameMap = {};
-    if (gameIds.length) {
-      const gRes = await fetch(`https://api.twitch.tv/helix/games?${gameIds.map(id=>`id=${id}`).join('&')}`, { headers });
-      const gData = await gRes.json();
-      nameMap = Object.fromEntries((gData.data||[]).map(g => [g.id, g.name]));
+    // Fetch clip and schedule data to get game categories
+    // Use channel schedule/stream markers to find games played
+    // Fall back to fetching clips which DO include game_id
+    const cutoff90 = Date.now() - 90 * 864e5;
+    const cutoff30 = Date.now() - 30 * 864e5;
+
+    let clips = [];
+    let clipCursor = null;
+    for (let i = 0; i < 3; i++) {
+      const clipUrl = `https://api.twitch.tv/helix/clips?broadcaster_id=${user.id}&first=100${clipCursor ? '&after=' + clipCursor : ''}`;
+      const cRes = await fetch(clipUrl, { headers });
+      const cData = await cRes.json();
+      clips = clips.concat(cData.data || []);
+      clipCursor = cData.pagination?.cursor;
+      if (!clipCursor || clips.length >= 300) break;
     }
 
-    // Build last 10 games with 30 and 90 day hours
-    const cutoff30 = Date.now() - 30 * 864e5;
-    const cutoff90 = Date.now() - 90 * 864e5;
+    // Also try channel info for current game
+    const channelRes = await fetch(`https://api.twitch.tv/helix/channels?broadcaster_id=${user.id}`, { headers });
+    const channelData = await channelRes.json();
+    const currentGame = channelData.data?.[0];
+
+    // Build game map from clips (clips always have game_id)
     const gameMap = {};
 
-    for (const v of allVideos) {
-      const name = nameMap[v.game_id] || v.game_id;
+    // Add current game from channel info
+    if (currentGame?.game_id && currentGame?.game_name) {
+      gameMap[currentGame.game_name] = {
+        name: currentGame.game_name,
+        secs30: 0,
+        secs90: 0,
+        lastPlayed: new Date().toISOString()
+      };
+    }
+
+    // Process clips for game data
+    const clipGameIds = [...new Set(clips.map(c => c.game_id).filter(Boolean))].slice(0, 100);
+    let clipNameMap = {};
+    if (clipGameIds.length) {
+      const gRes = await fetch(`https://api.twitch.tv/helix/games?${clipGameIds.map(id=>`id=${id}`).join('&')}`, { headers });
+      const gData = await gRes.json();
+      clipNameMap = Object.fromEntries((gData.data||[]).map(g => [g.id, g.name]));
+    }
+
+    for (const c of clips) {
+      const name = clipNameMap[c.game_id] || c.game_title;
       if (!name) continue;
-      const secs = parseSecs(v.duration);
-      const ts = new Date(v.created_at).getTime();
-      if (!gameMap[name]) gameMap[name] = { name, totalSecs: 0, secs30: 0, secs90: 0, lastPlayed: v.created_at };
-      gameMap[name].totalSecs += secs;
-      if (ts >= cutoff30) gameMap[name].secs30 += secs;
-      if (ts >= cutoff90) gameMap[name].secs90 += secs;
+      const ts = new Date(c.created_at).getTime();
+      if (!gameMap[name]) gameMap[name] = { name, secs30: 0, secs90: 0, lastPlayed: c.created_at };
+      if (ts >= cutoff30) gameMap[name].secs30 += c.duration || 0;
+      if (ts >= cutoff90) gameMap[name].secs90 += c.duration || 0;
+      if (new Date(c.created_at) > new Date(gameMap[name].lastPlayed)) {
+        gameMap[name].lastPlayed = c.created_at;
+      }
+    }
+
+    // If clips didn't give us games, use video titles to guess games
+    if (Object.keys(gameMap).length === 0) {
+      for (const v of allVideos.slice(0, 20)) {
+        const name = v.title || 'Unknown';
+        if (!gameMap[name]) gameMap[name] = { name, secs30: 0, secs90: 0, lastPlayed: v.created_at };
+        const secs = parseSecs(v.duration);
+        const ts = new Date(v.created_at).getTime();
+        if (ts >= cutoff30) gameMap[name].secs30 += secs;
+        if (ts >= cutoff90) gameMap[name].secs90 += secs;
+      }
     }
 
     function fmtHours(secs) {
@@ -105,7 +146,6 @@ export default async function handler(req, res) {
       return h > 0 ? `${h}h ${m}m` : `${m}m`;
     }
 
-    // Sort by most recently played and take top 10
     const recentGames = Object.values(gameMap)
       .sort((a, b) => new Date(b.lastPlayed) - new Date(a.lastPlayed))
       .slice(0, 10)
@@ -115,22 +155,17 @@ export default async function handler(req, res) {
         hours30: fmtHours(g.secs30),
         hours90: fmtHours(g.secs90)
       }));
-res.json({
+
+    res.json({
       displayName: user.display_name,
       followers,
       avgViewers,
       peakViewers: '—',
       periods,
       recentGames,
-      debug: {
-        totalVideos: allVideos.length,
-        sampleVideo: allVideos[0] || null,
-        gameIdsFound: gameIds.length,
-        nameMapSize: Object.keys(nameMap).length
-      },
       url: `https://twitchtracker.com/${username}`
     });
-  
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

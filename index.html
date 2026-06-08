@@ -131,10 +131,8 @@ function renderDashboard(data) {
       </div>
       <a class="profile-link" href="${data.url}" target="_blank">View on TwitchTracker ↗</a>
     </div>
-    <div class="section-label">Overview</div>
-    <div class="metrics-grid">
-      ${metricCard('Avg Viewers', data.avgViewers || '—', 'accent')}
-      ${metricCard('Peak Viewers', data.peakViewers || '—', 'green')}
+        <div class="metrics-grid">
+
       ${metricCard('Total Followers', data.followers || '—', 'teal')}
     </div>
     <div class="section-label">30 Day / 90 Day / 6 Month Breakdown</div>
@@ -144,7 +142,7 @@ function renderDashboard(data) {
           <div>
             <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:8px;letter-spacing:1px">${p.label || p.days+'-DAY'}</div>
             <div class="pstat"><div class="ps-label">Broadcast Time</div><div class="ps-value">${p.broadcastTime||'—'}</div></div>
-            <div class="pstat" style="margin-top:6px"><div class="ps-label">Hours Watched</div><div class="ps-value">${p.hoursWatched||'—'}</div></div>
+
             <div class="pstat" style="margin-top:6px"><div class="ps-label">Active Days/Wk</div><div class="ps-value">${p.activeDays||'—'}</div></div>
             <div class="pstat" style="margin-top:6px"><div class="ps-label">Hours Streamed/Wk</div><div class="ps-value">${p.hoursPerWeek||'—'}</div></div>
           </div>`).join('')}

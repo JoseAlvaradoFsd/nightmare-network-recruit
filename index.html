@@ -405,12 +405,41 @@ function renderDashboard(data) {
 
   let html = `
     <div class="profile-row">
+async function fetchTeams(username) {
+  const container = document.getElementById('teamsContainer');
+  if (!container) return;
+  try {
+    const res = await fetch(`/api/teams?username=${encodeURIComponent(username)}`);
+    const data = await res.json();
+    if (!data.teams || data.teams.length === 0) {
+      container.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:12px 0;">Not part of any stream teams.</div>`;
+      return;
+    }
+    container.innerHTML = data.teams.map(t => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border-radius:9px;">
+        ${t.thumbnail_url ? `<img src="${t.thumbnail_url}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;" />` : `<div style="width:36px;height:36px;border-radius:6px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:16px;">👥</div>`}
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">${t.team_display_name}</div>
+          <a href="https://www.twitch.tv/team/${t.team_name}" target="_blank" style="font-size:11px;color:var(--accent2);font-family:var(--mono);text-decoration:none;">twitch.tv/team/${t.team_name} ↗</a>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:12px 0;">Could not load team data.</div>`;
+  }
+}
+    
       <div class="profile-avatar">${initials}</div>
       <div class="profile-info">
         <h2>${displayName}</h2>
         <p>Twitch: ${data.username} · Pulled ${new Date().toLocaleString()}</p>
       </div>
       <a class="profile-link" href="${data.url}" target="_blank">View on TwitchTracker ↗</a>
+        <div class="section-label">Stream Teams</div>
+<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:1.5rem;">
+  <div id="teamsContainer" style="display:flex;flex-direction:column;gap:8px;">
+    <div style="font-size:13px;color:var(--muted);font-family:var(--mono);">Loading teams...</div>
+  </div>
+</div>
     </div>
     <div class="metrics-grid">
       ${metricCard('Total Followers', data.followers || '—', 'teal')}
@@ -461,6 +490,7 @@ function renderDashboard(data) {
     ${renderEmailComposer(data)}`;
 
   document.getElementById('mainContent').innerHTML = html;
+  fetchTeams(data.username);
 
   setTimeout(() => {
     updateEmailPreview(displayName);

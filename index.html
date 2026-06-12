@@ -57,8 +57,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .profile-link { margin-left: auto; font-size: 12px; color: var(--accent2); text-decoration: none; font-family: var(--mono); padding: 6px 12px; border: 0.5px solid rgba(155,109,255,0.3); border-radius: 7px; transition: background 0.15s; }
 .profile-link:hover { background: rgba(155,109,255,0.1); }
 .error-box { background: rgba(248,113,113,0.1); border: 0.5px solid rgba(248,113,113,0.3); border-radius: 10px; padding: 14px 16px; font-size: 13px; color: var(--red); margin-bottom: 1rem; }
-
-/* ELIGIBILITY CARD */
 .eligibility-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 1.5rem; }
 .eligibility-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .eligibility-header h3 { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.5px; }
@@ -75,8 +73,6 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); min-
 .criteria-text { flex: 1; }
 .criteria-text .ct-label { font-size: 13px; font-weight: 500; color: var(--text); }
 .criteria-text .ct-detail { font-size: 12px; color: var(--muted); margin-top: 3px; font-family: var(--mono); }
-
-/* EMAIL COMPOSER */
 .email-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 2rem; }
 .email-card h3 { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 16px; color: var(--accent2); }
 .template-selector { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
@@ -131,30 +127,30 @@ const HORROR_GAMES = [
   'dead by daylight','resident evil','phasmophobia','silent hill','outlast','amnesia',
   'visage','layers of fear','observer','soma','alien isolation','five nights at freddy\'s',
   'fnaf','little nightmares','poppy playtime','inscryption','the dark pictures',
-  'until dawn','the quarry','house beasts','devour','forewarned','content warning',
+  'until dawn','the quarry','devour','forewarned','content warning',
   'lethal company','the forest','sons of the forest','project zomboid','darkwood',
   'dredge','signalis','fears to fathom','detention','devotion','martha is dead',
   'the mortuary assistant','simulacra','alan wake','control','hellblade','bloodborne',
   'elden ring','dark souls','dead space','the callisto protocol','evil within',
   'dying light','days gone','the last of us','remothered','madison','the medium',
   'tormented souls','monstrum','subnautica','don\'t starve','carrion','returnal',
-  'ghost','paranormal activity','prop night','night of the consumers','tattletail',
+  'paranormal activity','prop night','night of the consumers','tattletail',
   'bendy','hello neighbor','granny','evil nun','eyes the horror game','slender',
   'white day','ib','witch\'s house','yomawari','misao','ao oni','imscared',
-  'faith','doki doki','omori','petscop','cat lady','downfall','distraint',
-  'mundus','apsulov','scorn','still wakes the deep','iron lung',
+  'faith','doki doki','omori','cat lady','downfall','distraint',
+  'apsulov','scorn','still wakes the deep','iron lung',
   'anatomy','paratopic','kholat','the void','penumbra',
   'cry of fear','afraid of monsters','nightmare house','underhell',
   'echoes of the living','maid of sker','monstrum 2',
   'dead island','world war z','back 4 blood','left 4 dead',
   'killing floor','vermintide','zombie army',
   'evil dead','texas chain saw massacre','identity v',
-  'deceit','midnight ghost hunt','ritual','the blackout club',
+  'deceit','midnight ghost hunt','the blackout club',
   'in sound mind','the beast inside','those who remain',
   'grim dawn','path of exile','diablo','darkest dungeon','vampire survivors',
   'lobotomy corporation','library of ruina',
   'blasphemous','hollow knight','salt and sanctuary','curse of the dead gods',
-  'redfall','overkill\'s the walking dead'
+  'redfall'
 ];
 
 function isHorrorGame(name) {
@@ -190,147 +186,52 @@ function checkConsistency(periods) {
   if (!periods || periods.length < 3) return null;
   const p6mo = periods.find(p => p.days === '180' || p.days === 180);
   if (!p6mo) return null;
-  const days = parseActiveDays(p6mo.activeDays);
-  return days >= 2;
+  return parseActiveDays(p6mo.activeDays) >= 2;
 }
 
 function renderEligibility(data) {
   const periods = data.periods || [];
   const p30 = periods.find(p => String(p.days) === '30') || {};
-
   const activeDays = parseActiveDays(p30.activeDays);
   const hoursPerWeek = parseHoursPerWeek(p30.hoursPerWeek);
   const streamsOk = activeDays >= 3 || hoursPerWeek >= 12;
-  const streamsDetail = `${activeDays} days/wk · ${hoursPerWeek}h/wk (need 3+ days OR 12+ hrs)`;
-
+  const streamsDetail = activeDays + ' days/wk · ' + hoursPerWeek + 'h/wk (need 3+ days OR 12+ hrs)';
   const horrorPct = calcHorrorPercent(data.monthTimeline);
   const horrorOk = horrorPct !== null ? horrorPct >= 50 : null;
-  const horrorDetail = horrorPct !== null
-    ? `~${horrorPct}% of streamed hours are horror/adjacent`
-    : 'Could not calculate — no game data';
-
+  const horrorDetail = horrorPct !== null ? '~' + horrorPct + '% of streamed hours are horror/adjacent' : 'Could not calculate — no game data';
   const consistencyOk = checkConsistency(periods);
-  const consistencyDetail = consistencyOk !== null
-    ? (consistencyOk ? 'Has streamed regularly over the past 6 months' : 'Stream history appears inconsistent over 6 months')
-    : 'Not enough data to assess';
-
+  const consistencyDetail = consistencyOk !== null ? (consistencyOk ? 'Has streamed regularly over the past 6 months' : 'Stream history appears inconsistent over 6 months') : 'Not enough data to assess';
   const passCount = [streamsOk, horrorOk, consistencyOk].filter(v => v === true).length;
   const failCount = [streamsOk, horrorOk, consistencyOk].filter(v => v === false).length;
-
   let overallBadge, overallClass;
-  if (failCount === 0 && passCount === 3) {
-    overallBadge = '✓ ELIGIBLE'; overallClass = 'eligible';
-  } else if (failCount >= 2) {
-    overallBadge = '✗ NOT ELIGIBLE'; overallClass = 'not-eligible';
-  } else {
-    overallBadge = '⚠ REVIEW'; overallClass = 'partial';
-  }
+  if (failCount === 0 && passCount === 3) { overallBadge = '✓ ELIGIBLE'; overallClass = 'eligible'; }
+  else if (failCount >= 2) { overallBadge = '✗ NOT ELIGIBLE'; overallClass = 'not-eligible'; }
+  else { overallBadge = '⚠ REVIEW'; overallClass = 'partial'; }
 
   function criteriaRow(label, detail, status) {
-    let iconClass, iconChar;
-    if (status === true) { iconClass = 'pass'; iconChar = '✓'; }
-    else if (status === false) { iconClass = 'fail'; iconChar = '✗'; }
-    else { iconClass = 'warn'; iconChar = '?'; }
-    return `
-      <div class="criteria-row">
-        <div class="criteria-icon ${iconClass}">${iconChar}</div>
-        <div class="criteria-text">
-          <div class="ct-label">${label}</div>
-          <div class="ct-detail">${detail}</div>
-        </div>
-      </div>`;
+    const iconClass = status === true ? 'pass' : status === false ? 'fail' : 'warn';
+    const iconChar = status === true ? '✓' : status === false ? '✗' : '?';
+    return '<div class="criteria-row"><div class="criteria-icon ' + iconClass + '">' + iconChar + '</div><div class="criteria-text"><div class="ct-label">' + label + '</div><div class="ct-detail">' + detail + '</div></div></div>';
   }
 
-  return `
-    <div class="section-label">Eligibility Check</div>
-    <div class="eligibility-card">
-      <div class="eligibility-header">
-        <h3>NIGHTMARE NETWORK CRITERIA</h3>
-        <span class="eligibility-badge ${overallClass}">${overallBadge}</span>
-      </div>
-      <div class="criteria-list">
-        ${criteriaRow('Stream Frequency', streamsDetail, streamsOk)}
-        ${criteriaRow('Horror Content (50%+ required)', horrorDetail, horrorOk)}
-        ${criteriaRow('Consistent Stream History (6mo)', consistencyDetail, consistencyOk)}
-      </div>
-    </div>`;
+  return '<div class="section-label">Eligibility Check</div><div class="eligibility-card"><div class="eligibility-header"><h3>NIGHTMARE NETWORK CRITERIA</h3><span class="eligibility-badge ' + overallClass + '">' + overallBadge + '</span></div><div class="criteria-list">' + criteriaRow('Stream Frequency', streamsDetail, streamsOk) + criteriaRow('Horror Content (50%+ required)', horrorDetail, horrorOk) + criteriaRow('Consistent Stream History (6mo)', consistencyDetail, consistencyOk) + '</div></div>';
 }
 
 const TEMPLATES = {
   interview: {
     name: 'Little Nightmare Interview',
-    subject: 'Nightmare Network — You\'ve Been Noticed 👁',
-    body: (name) => `Wake Up ${name},
-
-The Nightmare Network Scream Team, a stream team dedicated to horror content creators, is here to help you WAKE UP.
-
-Within the Nightmare Network we focus on building a supportive community where members can collaborate with game developers, brands and other creators, share insights, achieve dreams, and grow together.
-
-We're reaching out to you because we believe you could be a great fit for our team. We are interested in inviting you to participate in a mutual interview process. This interview will be an opportunity for both sides to get to know each other better, discuss potential collaborations, and explore if joining the Nightmare Network would be a mutually beneficial relationship.
-
-If everything aligns well, we would like to offer you a two-week trial period as a "Little Nightmare," during which you can explore what our community has to offer. After the trial, and if it feels like a good fit, we'd be thrilled to welcome you as a full member, or "Night Terror."
-
-We value open communication and want to ensure that our partnership is as beneficial for you as it is for us. During the interview, you'll have the chance to ask questions, understand our vision, and see how we can support your growth as a creator.
-
-If this sounds interesting to you, please let us know a convenient time for you to schedule the interview. In your reply, you can use @time and put your desired time (on desktop only) to insert dates/times in your local time zone and that will show in ours, too!
-
-We're looking forward to the possibility of working together and creating something truly unique in the world of horror streaming and content creation.
-
-Sweet Dreams,
-Nightmare Network Leadership Council`
+    subject: "Nightmare Network — You've Been Noticed 👁",
+    body: function(name) { return "Wake Up " + name + ",\n\nThe Nightmare Network Scream Team, a stream team dedicated to horror content creators, is here to help you WAKE UP.\n\nWithin the Nightmare Network we focus on building a supportive community where members can collaborate with game developers, brands and other creators, share insights, achieve dreams, and grow together.\n\nWe're reaching out to you because we believe you could be a great fit for our team. We are interested in inviting you to participate in a mutual interview process. This interview will be an opportunity for both sides to get to know each other better, discuss potential collaborations, and explore if joining the Nightmare Network would be a mutually beneficial relationship.\n\nIf everything aligns well, we would like to offer you a two-week trial period as a \"Little Nightmare,\" during which you can explore what our community has to offer. After the trial, and if it feels like a good fit, we'd be thrilled to welcome you as a full member, or \"Night Terror.\"\n\nWe value open communication and want to ensure that our partnership is as beneficial for you as it is for us. During the interview, you'll have the chance to ask questions, understand our vision, and see how we can support your growth as a creator.\n\nIf this sounds interesting to you, please let us know a convenient time for you to schedule the interview. In your reply, you can use @time and put your desired time (on desktop only) to insert dates/times in your local time zone and that will show in ours, too!\n\nWe're looking forward to the possibility of working together and creating something truly unique in the world of horror streaming and content creation.\n\nSweet Dreams,\nNightmare Network Leadership Council"; }
   },
   invite: {
     name: 'Little Nightmare Invite',
-    subject: 'Nightmare Network — Welcome to the Family 🖤',
-    body: (name) => `Hey ${name}!
-
-We just wanted to follow up with you! Everyone on the team is happy to move forward with offering you a role as a full Night Terror if this still feels like a good fit for you and you would also like to move forward.
-
-If there's anything you want to discuss before making that decision, just let me know and we can set up a time to meet. (Or we can message here or privately).
-
-If you want to move forward, please send us your favourite photo of you to use for promo, 4 of your fav emotes, your pronouns, and some fun lines for some ideas that you would like listed describing you/your content. (I'll provide some examples).
-
-Line 1: What would your title be when it comes to the games you play
-Line 2: Another descriptor
-Line 3: Another descriptor
-Line 4: Another descriptor/something funny/something that is "you" branded"
-Line 5: Another descriptor/something funny/something that is "you" branded"
-Line 6: Another descriptor/something funny/something that is "you" branded"
-Line 7: A silly phrase to close it
-
-Let us know!
-
-If you accept I have a new onboarding document for you, too.
-https://www.canva.com/design/DAGfsYF1DnA/b-XiWbq7kJ9GPFe9ZczH1A/view?utm_content=DAGfsYF1DnA&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h3592cd174b`
+    subject: "Nightmare Network — Welcome to the Family 🖤",
+    body: function(name) { return "Hey " + name + "!\n\nWe just wanted to follow up with you! Everyone on the team is happy to move forward with offering you a role as a full Night Terror if this still feels like a good fit for you and you would also like to move forward.\n\nIf there's anything you want to discuss before making that decision, just let me know and we can set up a time to meet. (Or we can message here or privately).\n\nIf you want to move forward, please send us your favourite photo of you to use for promo, 4 of your fav emotes, your pronouns, and some fun lines for some ideas that you would like listed describing you/your content. (I'll provide some examples).\n\nLine 1: What would your title be when it comes to the games you play\nLine 2: Another descriptor\nLine 3: Another descriptor\nLine 4: Another descriptor/something funny/something that is \"you\" branded\"\nLine 5: Another descriptor/something funny/something that is \"you\" branded\"\nLine 6: Another descriptor/something funny/something that is \"you\" branded\"\nLine 7: A silly phrase to close it\n\nLet us know!\n\nIf you accept I have a new onboarding document for you, too.\nhttps://www.canva.com/design/DAGfsYF1DnA/b-XiWbq7kJ9GPFe9ZczH1A/view?utm_content=DAGfsYF1DnA&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h3592cd174b"; }
   }
 };
 
-function renderEmailComposer(data) {
-  const displayName = data.displayName || data.username;
-  return `
-    <div class="email-card">
-      <h3>📧 SEND OUTREACH EMAIL</h3>
-      <div class="template-selector">
-        <input type="radio" name="template" id="tpl-interview" class="template-radio" value="interview" checked onchange="updateEmailPreview('${displayName}')">
-        <label for="tpl-interview" class="template-label">Little Nightmare Interview</label>
-        <input type="radio" name="template" id="tpl-invite" class="template-radio" value="invite" onchange="updateEmailPreview('${displayName}')">
-        <label for="tpl-invite" class="template-label">Little Nightmare Invite</label>
-      </div>
-      <div class="email-fields">
-        <div class="email-field">
-          <label>TO — STREAMER EMAIL</label>
-          <input type="email" id="emailTo" placeholder="Enter streamer's email address..." oninput="updateGmailLink('${displayName}')" />
-        </div>
-      </div>
-      <div class="email-preview" id="emailPreview"></div>
-      <div class="email-actions">
-        <a class="gmail-btn" id="gmailLink" href="#" target="_blank" onclick="return openGmail('${displayName}')">
-          <svg viewBox="0 0 24 24"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>
-          Open in Gmail
-        </a>
-        <button class="copy-btn" onclick="copyEmailBody('${displayName}')">Copy Body</button>
-      </div>
-    </div>`;
+function renderEmailComposer(displayName) {
+  return '<div class="email-card"><h3>📧 SEND OUTREACH EMAIL</h3><div class="template-selector"><input type="radio" name="template" id="tpl-interview" class="template-radio" value="interview" checked><label for="tpl-interview" class="template-label">Little Nightmare Interview</label><input type="radio" name="template" id="tpl-invite" class="template-radio" value="invite"><label for="tpl-invite" class="template-label">Little Nightmare Invite</label></div><div class="email-fields"><div class="email-field"><label>TO — STREAMER EMAIL</label><input type="email" id="emailTo" placeholder="Enter streamer\'s email address..." /></div></div><div class="email-preview" id="emailPreview"></div><div class="email-actions"><a class="gmail-btn" id="gmailLink" href="#" target="_blank"><svg viewBox="0 0 24 24"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>Open in Gmail</a><button class="copy-btn" id="copyBtn">Copy Body</button></div></div>';
 }
 
 function getSelectedTemplate() {
@@ -338,38 +239,63 @@ function getSelectedTemplate() {
   return selected ? selected.value : 'interview';
 }
 
-function updateEmailPreview(name) {
+function updateEmailPreview() {
+  const name = (currentData && (currentData.displayName || currentData.username)) || '';
   const tpl = getSelectedTemplate();
   const preview = document.getElementById('emailPreview');
   if (preview) preview.textContent = TEMPLATES[tpl].body(name);
-  updateGmailLink(name);
+  updateGmailLink();
 }
 
-function updateGmailLink(name) {
+function updateGmailLink() {
+  const name = (currentData && (currentData.displayName || currentData.username)) || '';
   const tpl = getSelectedTemplate();
   const to = (document.getElementById('emailTo') || {}).value || '';
   const subject = encodeURIComponent(TEMPLATES[tpl].subject);
   const body = encodeURIComponent(TEMPLATES[tpl].body(name));
-  const link = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${subject}&body=${body}`;
+  const link = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(to) + '&su=' + subject + '&body=' + body;
   const gmailLink = document.getElementById('gmailLink');
-  if (gmailLink) gmailLink.dataset.href = link;
+  if (gmailLink) gmailLink.href = link;
 }
 
-function openGmail(name) {
-  updateGmailLink(name);
-  const gmailLink = document.getElementById('gmailLink');
-  const href = gmailLink ? gmailLink.dataset.href : null;
-  if (href) { window.open(href, '_blank'); }
-  return false;
-}
-
-function copyEmailBody(name) {
+function copyEmailBody() {
+  const name = (currentData && (currentData.displayName || currentData.username)) || '';
   const tpl = getSelectedTemplate();
   const text = TEMPLATES[tpl].body(name);
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.querySelector('.copy-btn');
-    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy Body', 2000); }
+  navigator.clipboard.writeText(text).then(function() {
+    const btn = document.getElementById('copyBtn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(function() { btn.textContent = 'Copy Body'; }, 2000); }
   });
+}
+
+function bindEmailControls() {
+  document.querySelectorAll('input[name="template"]').forEach(function(r) {
+    r.addEventListener('change', updateEmailPreview);
+  });
+  const emailTo = document.getElementById('emailTo');
+  if (emailTo) emailTo.addEventListener('input', updateGmailLink);
+  const copyBtn = document.getElementById('copyBtn');
+  if (copyBtn) copyBtn.addEventListener('click', copyEmailBody);
+  updateEmailPreview();
+}
+
+async function fetchTeams(username) {
+  const container = document.getElementById('teamsContainer');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/teams?username=' + encodeURIComponent(username));
+    const data = await res.json();
+    if (!data.teams || data.teams.length === 0) {
+      container.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:4px 0;">Not currently part of any Twitch stream teams.</div>';
+      return;
+    }
+    container.innerHTML = data.teams.map(function(t) {
+      const thumb = t.thumbnail_url ? '<img src="' + t.thumbnail_url + '" style="width:36px;height:36px;border-radius:6px;object-fit:cover;" />' : '<div style="width:36px;height:36px;border-radius:6px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:18px;">👥</div>';
+      return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border-radius:9px;">' + thumb + '<div><div style="font-size:13px;font-weight:500;color:var(--text)">' + t.team_display_name + '</div><a href="https://www.twitch.tv/team/' + t.team_name + '" target="_blank" style="font-size:11px;color:var(--accent2);font-family:var(--mono);text-decoration:none;">twitch.tv/team/' + t.team_name + ' ↗</a></div></div>';
+    }).join('');
+  } catch(err) {
+    container.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:4px 0;">Could not load team data.</div>';
+  }
 }
 
 function setStatus(state, msg) {
@@ -386,15 +312,15 @@ async function lookupStreamer() {
   setStatus('loading', 'Fetching data...');
   document.getElementById('mainContent').innerHTML = '';
   try {
-    const res = await fetch(`/api/scrape?username=${encodeURIComponent(username)}`);
+    const res = await fetch('/api/scrape?username=' + encodeURIComponent(username));
     if (!res.ok) throw new Error((await res.json()).error || 'Request failed');
     const data = await res.json();
-    currentData = { username, ...data };
+    currentData = Object.assign({ username: username }, data);
     renderDashboard(currentData);
-    setStatus('ok', `Data loaded for ${username}`);
-  } catch (err) {
+    setStatus('ok', 'Data loaded for ' + username);
+  } catch(err) {
     setStatus('err', 'Could not load data');
-    document.getElementById('mainContent').innerHTML = `<div class="error-box"><strong>Error:</strong> ${err.message}</div>`;
+    document.getElementById('mainContent').innerHTML = '<div class="error-box"><strong>Error:</strong> ' + err.message + '</div>';
   }
   btn.disabled = false;
 }
@@ -403,129 +329,51 @@ function renderDashboard(data) {
   const initials = (data.displayName || data.username).slice(0,2).toUpperCase();
   const displayName = data.displayName || data.username;
 
-  let html = `
-    <div class="profile-row">
-async function fetchTeams(username) {
-  const container = document.getElementById('teamsContainer');
-  if (!container) return;
-  try {
-    const res = await fetch(`/api/teams?username=${encodeURIComponent(username)}`);
-    const data = await res.json();
-    if (!data.teams || data.teams.length === 0) {
-      container.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:12px 0;">Not part of any stream teams.</div>`;
-      return;
-    }
-    container.innerHTML = data.teams.map(t => `
-      <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border-radius:9px;">
-        ${t.thumbnail_url ? `<img src="${t.thumbnail_url}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;" />` : `<div style="width:36px;height:36px;border-radius:6px;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:16px;">👥</div>`}
-        <div>
-          <div style="font-size:13px;font-weight:500;color:var(--text)">${t.team_display_name}</div>
-          <a href="https://www.twitch.tv/team/${t.team_name}" target="_blank" style="font-size:11px;color:var(--accent2);font-family:var(--mono);text-decoration:none;">twitch.tv/team/${t.team_name} ↗</a>
-        </div>
-      </div>`).join('');
-  } catch (err) {
-    container.innerHTML = `<div style="font-size:13px;color:var(--muted);padding:12px 0;">Could not load team data.</div>`;
-  }
-}
-    
-      <div class="profile-avatar">${initials}</div>
-      <div class="profile-info">
-        <h2>${displayName}</h2>
-        <p>Twitch: ${data.username} · Pulled ${new Date().toLocaleString()}</p>
-      </div>
-      <a class="profile-link" href="${data.url}" target="_blank">View on TwitchTracker ↗</a>
-        <div class="section-label">Stream Teams</div>
-<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:1.5rem;">
-  <div id="teamsContainer" style="display:flex;flex-direction:column;gap:8px;">
-    <div style="font-size:13px;color:var(--muted);font-family:var(--mono);">Loading teams...</div>
-  </div>
-</div>
-    </div>
-    <div class="metrics-grid">
-      ${metricCard('Total Followers', data.followers || '—', 'teal')}
-    </div>
+  const periodsHtml = (data.periods || []).map(function(p) {
+    return '<div><div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:8px;letter-spacing:1px">' + (p.label || p.days + '-DAY') + '</div><div class="pstat"><div class="ps-label">Broadcast Time</div><div class="ps-value">' + (p.broadcastTime||'—') + '</div></div><div class="pstat" style="margin-top:6px"><div class="ps-label">Active Days/Wk</div><div class="ps-value">' + (p.activeDays||'—') + '</div></div><div class="pstat" style="margin-top:6px"><div class="ps-label">Hours Streamed/Wk</div><div class="ps-value">' + (p.hoursPerWeek||'—') + '</div></div></div>';
+  }).join('');
 
-    ${renderEligibility(data)}
+  const timelineHtml = (data.monthTimeline || []).map(function(month) {
+    const gamesHtml = month.games.length ? month.games.map(function(g) {
+      const horrorTag = isHorrorGame(g.name) ? '<span style="font-size:10px;background:rgba(155,109,255,0.15);color:var(--accent2);border:0.5px solid rgba(155,109,255,0.3);border-radius:4px;padding:2px 7px;font-family:var(--mono)">HORROR</span>' : '';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:0.5px solid var(--border)"><div style="display:flex;align-items:center;gap:8px"><div style="font-size:13px;font-weight:500">' + g.name + '</div>' + horrorTag + '</div><div style="font-family:var(--mono);font-size:12px;color:var(--teal)">' + g.hours + '</div></div>';
+    }).join('') : '<div style="padding:12px 16px;font-size:13px;color:var(--muted)">No game data found for this month.</div>';
+    return '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden"><div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg3)"><div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent2)">' + month.label + '</div><div style="display:flex;gap:16px"><div style="font-family:var(--mono);font-size:11px;color:var(--muted)">🎮 ' + month.games.length + ' games</div><div style="font-family:var(--mono);font-size:11px;color:var(--muted)">📅 ' + month.streamDays + ' days streamed</div><div style="font-family:var(--mono);font-size:11px;color:var(--green)">' + month.totalHours + ' total</div></div></div>' + gamesHtml + '</div>';
+  }).join('');
 
-    <div class="section-label">30 Day / 90 Day / 6 Month Breakdown</div>
-    <div class="period-block">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-        ${(data.periods || []).map(p => `
-          <div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:8px;letter-spacing:1px">${p.label || p.days+'-DAY'}</div>
-            <div class="pstat"><div class="ps-label">Broadcast Time</div><div class="ps-value">${p.broadcastTime||'—'}</div></div>
-            <div class="pstat" style="margin-top:6px"><div class="ps-label">Active Days/Wk</div><div class="ps-value">${p.activeDays||'—'}</div></div>
-            <div class="pstat" style="margin-top:6px"><div class="ps-label">Hours Streamed/Wk</div><div class="ps-value">${p.hoursPerWeek||'—'}</div></div>
-          </div>`).join('')}
-      </div>
-    </div>
-
-    <div class="section-label">3-Month Game Timeline</div>
-    ${(data.monthTimeline || []).map(month => `
-      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:0.5px solid var(--border);background:var(--bg3)">
-          <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent2)">${month.label}</div>
-          <div style="display:flex;gap:16px">
-            <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">🎮 ${month.games.length} games</div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">📅 ${month.streamDays} days streamed</div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--green)">${month.totalHours} total</div>
-          </div>
-        </div>
-        ${month.games.length ? month.games.map(g => `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:0.5px solid var(--border)">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="font-size:13px;font-weight:500">${g.name}</div>
-              ${isHorrorGame(g.name) ? '<span style="font-size:10px;background:rgba(155,109,255,0.15);color:var(--accent2);border:0.5px solid rgba(155,109,255,0.3);border-radius:4px;padding:2px 7px;font-family:var(--mono)">HORROR</span>' : ''}
-            </div>
-            <div style="font-family:var(--mono);font-size:12px;color:var(--teal)">${g.hours}</div>
-          </div>`).join('') : `
-          <div style="padding:12px 16px;font-size:13px;color:var(--muted)">No game data found for this month.</div>`}
-      </div>`).join('')}
-
-    <div class="export-bar">
-      <p><strong>Export to Google Sheets</strong><br>Downloads a CSV for ${displayName} — drag it into Google Sheets to import.</p>
-      <button class="export-btn" onclick="exportToSheets()">Export to Sheets</button>
-    </div>
-
-    ${renderEmailComposer(data)}`;
+  const html =
+    '<div class="profile-row"><div class="profile-avatar">' + initials + '</div><div class="profile-info"><h2>' + displayName + '</h2><p>Twitch: ' + data.username + ' · Pulled ' + new Date().toLocaleString() + '</p></div><a class="profile-link" href="' + data.url + '" target="_blank">View on TwitchTracker ↗</a></div>'
+    + '<div class="metrics-grid"><div class="metric-card"><div class="m-label">TOTAL FOLLOWERS</div><div class="m-value teal">' + (data.followers || '—') + '</div></div></div>'
+    + '<div class="section-label">Stream Teams</div>'
+    + '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:1.5rem;"><div id="teamsContainer" style="display:flex;flex-direction:column;gap:8px;"><div style="font-size:13px;color:var(--muted);font-family:var(--mono);">Loading teams...</div></div></div>'
+    + renderEligibility(data)
+    + '<div class="section-label">30 Day / 90 Day / 6 Month Breakdown</div>'
+    + '<div class="period-block"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">' + periodsHtml + '</div></div>'
+    + '<div class="section-label">3-Month Game Timeline</div>'
+    + timelineHtml
+    + '<div class="export-bar"><p><strong>Export to Google Sheets</strong><br>Downloads a CSV for ' + displayName + ' — drag it into Google Sheets to import.</p><button class="export-btn" onclick="exportToSheets()">Export to Sheets</button></div>'
+    + renderEmailComposer(displayName);
 
   document.getElementById('mainContent').innerHTML = html;
   fetchTeams(data.username);
-
-  setTimeout(() => {
-    updateEmailPreview(displayName);
-    document.querySelectorAll('input[name="template"]').forEach(r => {
-      r.addEventListener('change', () => updateEmailPreview(displayName));
-    });
-    const emailTo = document.getElementById('emailTo');
-    if (emailTo) emailTo.addEventListener('input', () => updateGmailLink(displayName));
-  }, 50);
-}
-
-function metricCard(label, value, cls) {
-  return `<div class="metric-card"><div class="m-label">${label}</div><div class="m-value ${cls}">${value}</div></div>`;
+  setTimeout(bindEmailControls, 50);
 }
 
 function exportToSheets() {
   if (!currentData) return;
   const d = currentData;
-  const p = days => (d.periods || []).find(p => p.days === days) || {};
+  const p = function(days) { return (d.periods || []).find(function(x) { return x.days === days; }) || {}; };
   const horrorPct = calcHorrorPercent(d.monthTimeline);
   const headers = ['Username','Display Name','Followers','Horror %','30d Broadcast Time','30d Active Days/Wk','30d Hours/Wk','90d Broadcast Time','90d Active Days/Wk','90d Hours/Wk','6mo Broadcast Time','6mo Active Days/Wk','6mo Hours/Wk','Pulled At','TwitchTracker URL'];
-  const values = [
-    d.username, d.displayName||d.username, d.followers||'',
-    horrorPct !== null ? horrorPct+'%' : 'N/A',
-    p('30').broadcastTime||'', p('30').activeDays||'', p('30').hoursPerWeek||'',
-    p('90').broadcastTime||'', p('90').activeDays||'', p('90').hoursPerWeek||'',
-    p('180').broadcastTime||'', p('180').activeDays||'', p('180').hoursPerWeek||'',
-    new Date().toLocaleString(), d.url||''
-  ];
-  const csv = [headers.join(','), values.map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',')].join('\n');
-  const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([csv],{type:'text/csv'})),download:`nightmare_network_${d.username}_${Date.now()}.csv`});
+  const values = [d.username, d.displayName||d.username, d.followers||'', horrorPct !== null ? horrorPct+'%' : 'N/A', p('30').broadcastTime||'', p('30').activeDays||'', p('30').hoursPerWeek||'', p('90').broadcastTime||'', p('90').activeDays||'', p('90').hoursPerWeek||'', p('180').broadcastTime||'', p('180').activeDays||'', p('180').hoursPerWeek||'', new Date().toLocaleString(), d.url||''];
+  const csv = [headers.join(','), values.map(function(v){ return '"' + (v||'').replace(/"/g,'""') + '"'; }).join(',')].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+  a.download = 'nightmare_network_' + d.username + '_' + Date.now() + '.csv';
   a.click();
 }
 
-document.getElementById('usernameInput').addEventListener('keydown', e => { if (e.key === 'Enter') lookupStreamer(); });
+document.getElementById('usernameInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') lookupStreamer(); });
 </script>
 </body>
 </html>
